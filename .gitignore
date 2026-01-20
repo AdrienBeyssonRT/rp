@@ -1,0 +1,26 @@
+# Fichiers générés
+*.retry
+*.log
+
+# Certificats SSL (ne pas commiter les clés privées)
+*.key
+*.pem
+*.p12
+*.pfx
+certs/
+*.crt
+
+# Fichiers temporaires
+.DS_Store
+*.swp
+*.swo
+*~
+*.bak
+
+# Ansible
+.ansible/
+ansible.log
+
+# Backups
+*.bak
+group_vars/all.yml.bak

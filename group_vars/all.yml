@@ -1,0 +1,51 @@
+# Variables globales pour le déploiement du Reverse Proxy
+
+# Configuration du serveur backend
+backend_server: "192.168.200.20"
+backend_port: 80
+backend_protocol: "http"  # http ou https
+
+# Configuration du reverse proxy
+proxy_listen_ip: "0.0.0.0"  # 0.0.0.0 pour écouter sur toutes les interfaces
+proxy_http_port: 80
+proxy_https_port: 443
+
+# Nom de domaine ou IP
+# Par défaut : nom local gratuit (monsite.local)
+# Changez seulement si vous avez un domaine public
+domain_name: "monsite.local"  # Nom local gratuit - fonctionne sur votre réseau
+
+# Configuration SSL
+ssl_enabled: true
+ssl_cert_path: "/etc/nginx/ssl"
+ssl_cert_file: "certificate.crt"
+ssl_key_file: "private.key"
+ssl_cert_days: 365
+
+# Redirection HTTP vers HTTPS
+redirect_http_to_https: true
+
+# Configuration Nginx
+nginx_user: "www-data"  # www-data pour Debian/Ubuntu, nginx pour RedHat/CentOS
+nginx_worker_processes: "auto"
+nginx_worker_connections: 1024
+
+# Logs
+nginx_access_log: "/var/log/nginx/reverse-proxy-access.log"
+nginx_error_log: "/var/log/nginx/reverse-proxy-error.log"
+
+# Options de proxy
+proxy_connect_timeout: 60
+proxy_send_timeout: 60
+proxy_read_timeout: 60
+proxy_buffer_size: "4k"
+proxy_buffers: "8 4k"
+proxy_busy_buffers_size: "8k"
+
+# Headers personnalisés
+proxy_set_headers:
+  - "Host $host"
+  - "X-Real-IP $remote_addr"
+  - "X-Forwarded-For $proxy_add_x_forwarded_for"
+  - "X-Forwarded-Proto $scheme"
+

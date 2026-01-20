@@ -1,0 +1,169 @@
+---
+- name: Déploiement Reverse Proxy HTTPS avec Nginx
+  hosts: reverse_proxy
+  become: yes
+  vars:
+    # Chemins de configuration
+    nginx_config_dir: "/etc/nginx"
+    nginx_sites_available: "{{ nginx_config_dir }}/sites-available"
+    nginx_sites_enabled: "{{ nginx_config_dir }}/sites-enabled"
+    nginx_conf_file: "{{ nginx_sites_available }}/reverse-proxy"
+    
+  tasks:
+    - name: Vérifier que la collection community.crypto est installée
+      command: ansible-galaxy collection list community.crypto
+      register: crypto_collection_check
+      changed_when: false
+      failed_when: false
+      
+    - name: Installer la collection community.crypto si nécessaire
+      command: ansible-galaxy collection install community.crypto
+      when: crypto_collection_check.rc != 0
+      
+    - name: Détecter le gestionnaire de paquets
+      command: which apt-get
+      register: apt_check
+      changed_when: false
+      failed_when: false
+      
+    - name: Détecter yum
+      command: which yum
+      register: yum_check
+      changed_when: false
+      failed_when: false
+      
+    - name: Installer Nginx (Debian/Ubuntu)
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+      when: apt_check.rc == 0
+      
+    - name: Installer Nginx (RedHat/CentOS)
+      yum:
+        name: nginx
+        state: present
+      when: yum_check.rc == 0 and apt_check.rc != 0
+      
+    - name: Arrêter Nginx si déjà en cours d'exécution
+      systemd:
+        name: nginx
+        state: stopped
+      ignore_errors: yes
+      
+    - name: Créer le répertoire pour les certificats SSL
+      file:
+        path: "{{ ssl_cert_path }}"
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+        
+    - name: Générer le certificat SSL auto-signé
+      community.crypto.openssl_certificate:
+        path: "{{ ssl_cert_path }}/{{ ssl_cert_file }}"
+        privatekey_path: "{{ ssl_cert_path }}/{{ ssl_key_file }}"
+        provider: selfsigned
+        common_name: "{{ domain_name }}"
+        valid_in: "+{{ ssl_cert_days }}d"
+        privatekey_type: RSA
+        privatekey_size: 2048
+      when: ssl_enabled
+      
+    - name: Créer le répertoire sites-available si nécessaire
+      file:
+        path: "{{ nginx_sites_available }}"
+        state: directory
+        mode: '0755'
+        
+    - name: Créer le répertoire sites-enabled si nécessaire
+      file:
+        path: "{{ nginx_sites_enabled }}"
+        state: directory
+        mode: '0755'
+        
+    - name: Déployer la configuration Nginx
+      template:
+        src: templates/nginx-reverse-proxy.conf.j2
+        dest: "{{ nginx_conf_file }}"
+        mode: '0644'
+        owner: root
+        group: root
+      notify: reload nginx
+      
+    - name: Créer le lien symbolique vers sites-enabled
+      file:
+        src: "{{ nginx_conf_file }}"
+        dest: "{{ nginx_sites_enabled }}/reverse-proxy"
+        state: link
+        force: yes
+      notify: reload nginx
+      
+    - name: Supprimer la configuration par défaut de Nginx
+      file:
+        path: "{{ nginx_sites_enabled }}/default"
+        state: absent
+      ignore_errors: yes
+      notify: reload nginx
+      
+    - name: Vérifier la configuration Nginx
+      command: nginx -t
+      register: nginx_test
+      changed_when: false
+      
+    - name: Afficher le résultat du test de configuration
+      debug:
+        msg: "{{ nginx_test.stdout_lines }}"
+        
+    - name: Démarrer et activer Nginx
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+        
+    - name: Vérifier que Nginx est en cours d'exécution
+      systemd:
+        name: nginx
+      register: nginx_status
+      
+    - name: Obtenir l'IP de la machine
+      setup:
+        filter: ansible_default_ipv4
+      register: ip_facts
+      
+    - name: Extraire le nom et domaine
+      set_fact:
+        domain_parts: "{{ domain_name.split('.') }}"
+        machine_ip: "{{ ip_facts.ansible_facts.ansible_default_ipv4.address | default(ansible_default_ipv4.address) }}"
+        
+    - name: Afficher les informations de déploiement
+      debug:
+        msg:
+          - "=========================================="
+          - "✅ Reverse Proxy déployé avec succès !"
+          - "=========================================="
+          - "🌐 Accès HTTP  : http://{{ domain_name }}"
+          - "🔒 Accès HTTPS : https://{{ domain_name }}"
+          - "📋 Backend     : {{ backend_protocol }}://{{ backend_server }}:{{ backend_port }}"
+          - "=========================================="
+          - ""
+          - "📝 CONFIGURATION PFSENSE (1 seule fois) :"
+          - "   1. Connectez-vous à pfSense"
+          - "   2. Services → DNS Resolver → Host Overrides"
+          - "   3. Cliquez sur 'Add' et remplissez :"
+          - "      Host: {{ domain_parts[0] }}"
+          - "      Domain: {{ domain_parts[1:]|join('.') if domain_parts|length > 1 else 'local' }}"
+          - "      IP Address: {{ machine_ip }}"
+          - "   4. Sauvegardez"
+          - ""
+          - "🎉 Après ça, tous les PC du réseau pourront accéder à https://{{ domain_name }}"
+          - ""
+          - "⚠️  Avertissement de sécurité normal (certificat auto-signé)"
+          - "   Cliquez sur 'Avancé' puis 'Continuer' dans le navigateur."
+          
+  handlers:
+    - name: reload nginx
+      systemd:
+        name: nginx
+        state: reloaded
+

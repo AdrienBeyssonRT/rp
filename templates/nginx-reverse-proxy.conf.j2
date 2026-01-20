@@ -1,0 +1,117 @@
+# Configuration Reverse Proxy Nginx
+# Générée automatiquement par Ansible
+# Date: {{ ansible_date_time.iso8601 }}
+
+{% if redirect_http_to_https %}
+# Redirection HTTP vers HTTPS
+server {
+    listen {{ proxy_http_port }};
+    listen [::]:{{ proxy_http_port }};
+    server_name {{ domain_name }};
+    
+    # Redirection automatique vers HTTPS
+    return 301 https://$server_name$request_uri;
+}
+{% endif %}
+
+# Configuration HTTPS
+{% if ssl_enabled %}
+server {
+    listen {{ proxy_https_port }} ssl http2;
+    listen [::]:{{ proxy_https_port }} ssl http2;
+    server_name {{ domain_name }};
+    
+    # Certificats SSL
+    ssl_certificate {{ ssl_cert_path }}/{{ ssl_cert_file }};
+    ssl_certificate_key {{ ssl_cert_path }}/{{ ssl_key_file }};
+    
+    # Configuration SSL recommandée
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384';
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    
+    # Headers de sécurité
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    
+    # Logs
+    access_log {{ nginx_access_log }};
+    error_log {{ nginx_error_log }};
+    
+    # Reverse proxy vers le serveur backend
+    location / {
+        proxy_pass {{ backend_protocol }}://{{ backend_server }}:{{ backend_port }};
+        proxy_http_version 1.1;
+        
+        # Headers de proxy
+{% for header in proxy_set_headers %}
+        proxy_set_header {{ header }};
+{% endfor %}
+        
+        # Timeouts
+        proxy_connect_timeout {{ proxy_connect_timeout }}s;
+        proxy_send_timeout {{ proxy_send_timeout }}s;
+        proxy_read_timeout {{ proxy_read_timeout }}s;
+        
+        # Buffers
+        proxy_buffer_size {{ proxy_buffer_size }};
+        proxy_buffers {{ proxy_buffers }};
+        proxy_busy_buffers_size {{ proxy_busy_buffers_size }};
+        
+        # Support WebSocket
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Désactiver le buffering pour les réponses streaming
+        proxy_buffering off;
+    }
+    
+    # Health check endpoint (optionnel)
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+}
+{% else %}
+# Configuration HTTP uniquement (SSL désactivé)
+server {
+    listen {{ proxy_http_port }};
+    listen [::]:{{ proxy_http_port }};
+    server_name {{ domain_name }};
+    
+    # Logs
+    access_log {{ nginx_access_log }};
+    error_log {{ nginx_error_log }};
+    
+    # Reverse proxy vers le serveur backend
+    location / {
+        proxy_pass {{ backend_protocol }}://{{ backend_server }}:{{ backend_port }};
+        proxy_http_version 1.1;
+        
+        # Headers de proxy
+{% for header in proxy_set_headers %}
+        proxy_set_header {{ header }};
+{% endfor %}
+        
+        # Timeouts
+        proxy_connect_timeout {{ proxy_connect_timeout }}s;
+        proxy_send_timeout {{ proxy_send_timeout }}s;
+        proxy_read_timeout {{ proxy_read_timeout }}s;
+        
+        # Buffers
+        proxy_buffer_size {{ proxy_buffer_size }};
+        proxy_buffers {{ proxy_buffers }};
+        proxy_busy_buffers_size {{ proxy_busy_buffers_size }};
+        
+        # Support WebSocket
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+{% endif %}
+

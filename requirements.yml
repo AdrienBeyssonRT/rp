@@ -1,0 +1,8 @@
+# Dépendances Ansible (optionnel)
+# Pour installer : ansible-galaxy install -r requirements.yml
+
+# Collections Ansible nécessaires
+collections:
+  - name: community.crypto
+    version: ">=2.0.0"
+

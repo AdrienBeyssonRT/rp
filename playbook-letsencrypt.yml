@@ -1,0 +1,60 @@
+---
+# Playbook optionnel pour obtenir un certificat Let's Encrypt valide
+# Utilisez ce playbook APRÈS avoir déployé le reverse proxy de base
+# Nécessite un nom de domaine public (ex: monsite.duckdns.org)
+
+- name: Configuration Let's Encrypt pour certificat SSL valide
+  hosts: reverse_proxy
+  become: yes
+  vars:
+    domain_name: "{{ domain_name }}"
+    email: "votre-email@example.com"  # ⚠️ MODIFIEZ avec votre email
+    
+  tasks:
+    - name: Vérifier que Certbot est installé
+      command: which certbot
+      register: certbot_check
+      changed_when: false
+      failed_when: false
+      
+    - name: Installer Certbot et plugin Nginx
+      apt:
+        name:
+          - certbot
+          - python3-certbot-nginx
+        state: present
+        update_cache: yes
+      when: certbot_check.rc != 0
+      
+    - name: Obtenir le certificat Let's Encrypt
+      command: >
+        certbot --nginx
+        -d {{ domain_name }}
+        --non-interactive
+        --agree-tos
+        --email {{ email }}
+        --redirect
+      register: certbot_result
+      changed_when: "'Congratulations' in certbot_result.stdout"
+      
+    - name: Tester le renouvellement automatique
+      command: certbot renew --dry-run
+      changed_when: false
+      
+    - name: Afficher les informations
+      debug:
+        msg:
+          - "=========================================="
+          - "✅ Certificat Let's Encrypt installé !"
+          - "=========================================="
+          - "🌐 Accès : https://{{ domain_name }}"
+          - "🔒 Certificat valide (pas d'avertissement navigateur)"
+          - "🔄 Renouvellement automatique configuré"
+          - "=========================================="
+          
+  handlers:
+    - name: reload nginx
+      systemd:
+        name: nginx
+        state: reloaded
+

@@ -12,9 +12,11 @@ Transformer votre site web accessible via `http://192.168.200.20` en site HTTPS 
 
 Éditez `group_vars/all.yml` :
 ```yaml
-backend_server: "192.168.200.20"  # IP de votre serveur backend
-domain_name: "monsite.com"        # Votre nom de domaine ou IP
+backend_server: "192.168.200.20"  # IP de votre serveur backend (votre site web)
+domain_name: "monsite.local"      # Nom local gratuit (déjà configuré par défaut)
 ```
+
+**C'est tout !** Le nom `monsite.local` est déjà configuré. Changez seulement `backend_server` si votre site est sur une autre IP.
 
 ### 2. Installation des dépendances
 
@@ -41,19 +43,21 @@ Ansible fait **tout automatiquement** :
 - ✅ Configure le reverse proxy
 - ✅ Démarre Nginx
 
-### 4. Configuration pfSense (À FAIRE MANUELLEMENT)
+### 4. Configuration pfSense (1 seule fois)
 
 1. **pfSense** → Services → DNS Resolver → Host Overrides
 2. Cliquez sur **"Add"**
-3. Remplissez :
-   - **Host** : `monsite` (sans le .com)
-   - **Domain** : `com`
-   - **IP Address** : L'IP de la machine reverse proxy (affichée à la fin du déploiement)
+3. Remplissez (l'IP est affichée à la fin du déploiement Ansible) :
+   - **Host** : `monsite`
+   - **Domain** : `local`
+   - **IP Address** : L'IP de la machine reverse proxy
 4. **Sauvegardez**
 
-### 5. Test
+### 5. C'est prêt !
 
-Ouvrez : **https://monsite.com**
+Ouvrez : **https://monsite.local**
+
+🎉 Tous les PC du réseau peuvent maintenant y accéder !
 
 ⚠️ Avertissement de sécurité normal (certificat auto-signé). Cliquez sur "Avancé" puis "Continuer".
 
